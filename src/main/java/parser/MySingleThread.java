@@ -13,29 +13,34 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class MySingleThread implements Runnable{
 
-	private BlockingQueue<String> queue;
+	private Map<String, Boolean> linkQueue;
 	private Lock lock;
     private Condition con;
 	private ThreadPoolManager threadPoolManager;
 	
 	public MySingleThread(ThreadPoolManager tpm) {
 		threadPoolManager = tpm;
-		queue = new ArrayBlockingQueue<>(1024);
+		linkQueue = new ConcurrentHashMap<>();
 		lock = new ReentrantLock();
 	    con = lock.newCondition();
 	}
 	
 	public void addNewLinkToQueue(String link) throws InterruptedException{
-		queue.put(link);
+		linkQueue.put(link, true);
 		con.signal();
 	}
 	
-	public String getLinkFromQueue() throws InterruptedException{
-		return queue.take();
+	public void addNewLinkToQueue(String link, Boolean isInitial) throws InterruptedException{
+		linkQueue.put(link, isInitial);
+		con.signal();
+	}
+	
+	public Map.Entry<String, Boolean> getLinkFromQueue() throws InterruptedException{ 
+		return linkQueue.entrySet().iterator().next();
 	}
 	
 	public int getCurrentQueueSize() {
-		return queue.size();
+		return linkQueue.size();
 	}
 	
 	@Override
@@ -43,31 +48,48 @@ public class MySingleThread implements Runnable{
 		
 		Map<String, String> listOfWords = new ConcurrentHashMap<>();
 		String curLink = null;
+		Boolean isLinkInitial = true;
 		
 		while (!Thread.currentThread().isInterrupted()) {
 			
-			while(queue.size()<1){
+			while(linkQueue.size()<1){
 	            try {
 	                con.await();
 	            } catch (InterruptedException ex) {
-	                //Logger.getLogger(MySingleThread.class.getName()).log(Level.SEVERE, null, ex);
+//	                Logger.getLogger(MySingleThread.class.getName()).log(Level.SEVERE, null, ex);
 	            }
 	        }
 			
 			try {
-				curLink = getLinkFromQueue();
+				curLink = getLinkFromQueue().getKey();
+				isLinkInitial = getLinkFromQueue().getValue();
+				linkQueue.remove(curLink);
+				
 			} catch (InterruptedException e) {
 				e.printStackTrace();
+			}
+			
+			// perform processing of all internal page links(only to one step-in)
+			if (isLinkInitial) {
+				if (SoupParser.getAllLinks(curLink).size() > 0) {
+					for (String i: SoupParser.getAllLinks(curLink)) {
+						try {
+							addNewLinkToQueue(i, false);
+						} catch (InterruptedException e) {
+							e.printStackTrace();
+						}
+					}
+				}
 			}
 			
 			for (String i : SoupParser.getAllWordsFromPage(curLink)) {
 				listOfWords.put(i, curLink);
 			}
 			
-			//todo - add import of generated listOfWords to Global Invert List
+			threadPoolManager.addItemToInvertIndex(listOfWords);
+			
 		}
 
-		//return listOfWords;
 	}
 
 }

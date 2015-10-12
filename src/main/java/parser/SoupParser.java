@@ -35,9 +35,14 @@ public class SoupParser {
 			String[] curDirtyWords = curString.split("\\s");
 			
 			for (String dirtyWord: curDirtyWords) {
+//				System.out.println(dirtyWord.toLowerCase());
 				clearWords.add(dirtyWord.toLowerCase());
 			}			
 		}
+		
+//		for (String i: clearWords) {
+//			System.out.println(i);
+//		}	
 		
 		return clearWords;
 	}
@@ -66,7 +71,7 @@ public class SoupParser {
 	public static void main(String[] args) {
 		//SoupParser test = new SoupParser();
 		
-		SoupParser.getAllLinks("http://ukr.net");	
+		SoupParser.getAllWordsFromPage("http://ukr.net");	
 		
 	}
 }
